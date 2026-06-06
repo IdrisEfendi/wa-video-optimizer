@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id" class="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WhatsApp Video Optimizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: "class" };
+    </script>
+  </head>
+  <body class="bg-zinc-950 text-zinc-100">
+    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-normal">WhatsApp Video Optimizer</h1>
+          <p class="mt-1 text-sm text-zinc-400">Optimize video ke MP4 H.264 + AAC sebelum dikirim ke WhatsApp.</p>
+        </div>
+        <button id="themeToggle" class="h-10 rounded-md border border-zinc-700 px-3 text-sm text-zinc-200 hover:bg-zinc-900">Dark</button>
+      </header>
+
+      <section id="dropZone" class="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-md border border-dashed border-emerald-500/60 bg-zinc-900 p-6 text-center hover:bg-zinc-900/80">
+        <input id="fileInput" class="hidden" type="file" accept=".mp4,.mov,.avi,.mkv,.webm,video/*">
+        <div class="text-lg font-medium">Drag & drop video di sini</div>
+        <div class="text-sm text-zinc-400">MP4, MOV, AVI, MKV, WEBM sampai 500 MB</div>
+        <button type="button" class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-emerald-400">Select Video</button>
+      </section>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-sm text-zinc-400">
+          <span id="progressLabel">Idle</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="h-2 overflow-hidden rounded-full bg-zinc-800">
+          <div id="progressBar" class="h-full w-0 bg-emerald-500 transition-all"></div>
+        </div>
+      </div>
+
+      <section id="errorBox" class="hidden rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200"></section>
+
+      <section id="analysisSection" class="hidden grid gap-4 lg:grid-cols-[1fr_420px]">
+        <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+          <h2 class="mb-3 text-base font-semibold">Original Metadata</h2>
+          <dl id="metadataGrid" class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3"></dl>
+        </div>
+        <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+          <h2 class="mb-3 text-base font-semibold">Preview</h2>
+          <video id="originalPreview" class="aspect-video w-full rounded-md bg-black" controls></video>
+        </div>
+      </section>
+
+      <section id="optimizeSection" class="hidden rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 class="text-base font-semibold">Optimization Mode</h2>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <label class="mode-label"><input class="peer sr-only" type="radio" name="profile" value="standard" checked><span>Standard</span></label>
+              <label class="mode-label"><input class="peer sr-only" type="radio" name="profile" value="hd"><span>HD</span></label>
+              <label class="mode-label"><input class="peer sr-only" type="radio" name="profile" value="status"><span>Status</span></label>
+              <label class="mode-label"><input class="peer sr-only" type="radio" name="profile" value="story"><span>Story</span></label>
+            </div>
+          </div>
+          <button id="optimizeBtn" class="h-11 rounded-md bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">Optimize Video</button>
+        </div>
+      </section>
+
+      <section id="comparisonSection" class="hidden grid gap-4 lg:grid-cols-2">
+        <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+          <h2 class="mb-3 text-base font-semibold">Original Video</h2>
+          <video id="originalCompare" class="aspect-video w-full rounded-md bg-black" controls></video>
+          <dl id="originalStats" class="mt-3 grid grid-cols-2 gap-3 text-sm"></dl>
+        </div>
+        <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+          <h2 class="mb-3 text-base font-semibold">Optimized Video</h2>
+          <video id="optimizedCompare" class="aspect-video w-full rounded-md bg-black" controls></video>
+          <dl id="optimizedStats" class="mt-3 grid grid-cols-2 gap-3 text-sm"></dl>
+        </div>
+      </section>
+
+      <section id="resultSection" class="hidden rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div id="resultSummary" class="grid gap-3 text-sm sm:grid-cols-4"></div>
+        <a id="downloadLink" class="mt-4 inline-flex h-11 items-center rounded-md bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400" href="#">Download Optimized Video</a>
+      </section>
+    </main>
+
+    <style>
+      .mode-label span {
+        display: inline-flex;
+        height: 2.5rem;
+        align-items: center;
+        border-radius: 0.375rem;
+        border: 1px solid rgb(63 63 70);
+        padding: 0 0.875rem;
+        font-size: 0.875rem;
+        color: rgb(212 212 216);
+      }
+      .mode-label input:checked + span {
+        border-color: rgb(16 185 129);
+        background: rgb(6 78 59);
+        color: white;
+      }
+    </style>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
