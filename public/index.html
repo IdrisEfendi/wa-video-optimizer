@@ -37,6 +37,23 @@
       </div>
 
       <section id="errorBox" class="hidden rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200"></section>
+      <section id="healthBox" class="rounded-md border border-zinc-800 bg-zinc-900 p-3 text-sm text-zinc-300">Checking FFmpeg...</section>
+
+      <section id="configSection" class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold">Settings</h2>
+          <span id="activeJobsBadge" class="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400">Active jobs: -</span>
+        </div>
+        <dl id="configGrid" class="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4"></dl>
+      </section>
+
+      <section id="historySection" class="hidden rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold">Session History</h2>
+          <button id="clearHistoryBtn" class="h-9 rounded-md border border-zinc-700 px-3 text-sm text-zinc-300 hover:bg-zinc-800" type="button">Clear</button>
+        </div>
+        <div id="historyList" class="mt-3 grid gap-2 text-sm"></div>
+      </section>
 
       <section id="analysisSection" class="hidden grid gap-4 lg:grid-cols-[1fr_420px]">
         <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
@@ -46,6 +63,7 @@
         <div class="rounded-md border border-zinc-800 bg-zinc-900 p-4">
           <h2 class="mb-3 text-base font-semibold">Preview</h2>
           <video id="originalPreview" class="aspect-video w-full rounded-md bg-black" controls></video>
+          <div id="thumbnailFallback" class="mt-2 hidden rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-400">Thumbnail tidak tersedia, preview memakai file video original.</div>
         </div>
       </section>
 
@@ -60,8 +78,22 @@
               <label class="mode-label"><input class="peer sr-only" type="radio" name="profile" value="story"><span>Story</span></label>
             </div>
           </div>
-          <button id="optimizeBtn" class="h-11 rounded-md bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">Optimize Video</button>
+          <div class="flex flex-wrap gap-2">
+            <button id="resetBtn" class="hidden h-11 rounded-md border border-zinc-700 px-4 text-sm font-semibold text-zinc-200 hover:bg-zinc-800" type="button">Upload New</button>
+            <button id="cancelBtn" class="hidden h-11 rounded-md border border-red-500/50 px-4 text-sm font-semibold text-red-200 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50" type="button">Cancel</button>
+            <button id="optimizeBtn" class="h-11 rounded-md bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50" type="button">Optimize Video</button>
+          </div>
         </div>
+      </section>
+
+      <section id="estimateSection" class="hidden rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold">Output Estimate</h2>
+          <span id="estimateProfile" class="rounded-md border border-emerald-500/40 bg-emerald-950/30 px-2 py-1 text-xs font-medium text-emerald-200">Standard</span>
+        </div>
+        <dl id="estimateGrid" class="mt-3 grid gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6"></dl>
+        <ul id="estimateChanges" class="mt-3 space-y-1 text-sm text-zinc-400"></ul>
+        <ul id="estimateWarnings" class="mt-3 hidden space-y-1 rounded-md border border-amber-500/30 bg-amber-950/30 p-3 text-sm text-amber-100"></ul>
       </section>
 
       <section id="comparisonSection" class="hidden grid gap-4 lg:grid-cols-2">

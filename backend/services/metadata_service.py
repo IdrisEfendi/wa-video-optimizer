@@ -6,6 +6,10 @@ from pathlib import Path
 from backend import settings
 
 
+class InvalidVideoError(ValueError):
+    pass
+
+
 def _fps(value: str | None) -> float:
     if not value or value == "0/0":
         return 0.0
@@ -16,6 +20,9 @@ def _fps(value: str | None) -> float:
 
 
 def _run_ffprobe(path: Path) -> dict:
+    if not path.exists() or path.stat().st_size <= 0:
+        raise InvalidVideoError("File video kosong atau tidak terbaca.")
+
     result = subprocess.run(
         [
             settings.FFPROBE_BIN,
@@ -32,8 +39,11 @@ def _run_ffprobe(path: Path) -> dict:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "FFprobe gagal membaca metadata.")
-    return json.loads(result.stdout)
+        raise InvalidVideoError("File tidak bisa dibaca sebagai video valid.")
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise InvalidVideoError("Metadata video tidak valid.") from exc
 
 
 def read_metadata(path: Path) -> dict:
@@ -42,17 +52,27 @@ def read_metadata(path: Path) -> dict:
     video = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
     audio = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
     if not video:
-        raise RuntimeError("File tidak memiliki stream video.")
+        raise InvalidVideoError("File tidak memiliki stream video.")
 
     fmt = data.get("format", {})
     duration = float(video.get("duration") or fmt.get("duration") or 0)
     bitrate = int(float(video.get("bit_rate") or fmt.get("bit_rate") or 0))
+    width = int(video.get("width") or 0)
+    height = int(video.get("height") or 0)
+    fps = _fps(video.get("avg_frame_rate") or video.get("r_frame_rate"))
+
+    if width <= 0 or height <= 0:
+        raise InvalidVideoError("Resolusi video tidak valid.")
+    if duration <= 0:
+        raise InvalidVideoError("Durasi video tidak valid atau tidak bisa dibaca.")
+    if fps <= 0:
+        raise InvalidVideoError("FPS video tidak valid atau tidak bisa dibaca.")
 
     return {
-        "width": int(video.get("width") or 0),
-        "height": int(video.get("height") or 0),
-        "resolution": f"{video.get('width', 0)}x{video.get('height', 0)}",
-        "fps": _fps(video.get("avg_frame_rate") or video.get("r_frame_rate")),
+        "width": width,
+        "height": height,
+        "resolution": f"{width}x{height}",
+        "fps": fps,
         "duration": round(duration, 3),
         "video_codec": video.get("codec_name") or "unknown",
         "audio_codec": audio.get("codec_name") if audio else "none",

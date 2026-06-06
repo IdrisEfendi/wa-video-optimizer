@@ -104,6 +104,8 @@ Metadata yang wajib ditampilkan:
 
 Metadata wajib dibaca dari FFprobe, bukan hanya dari browser.
 
+Validasi metadata wajib menolak file yang tidak bisa dibaca FFprobe, tidak memiliki stream video, durasi `0`, resolusi `0x0`, FPS tidak valid, atau file corrupt walaupun ekstensi terlihat benar.
+
 ### WhatsApp Optimization
 
 Output wajib:
@@ -158,8 +160,12 @@ Tambahan:
 
 MVP menggunakan queue sederhana berbasis file JSON:
 
+- `uploaded`.
 - `queued`.
-- `processing`.
+- `encoding`.
+- `finalizing`.
+- `cancel_requested`.
+- `canceled`.
 - `completed`.
 - `failed`.
 
@@ -420,6 +426,28 @@ Response sukses:
 
 Mengambil detail job dan metadata.
 
+### `GET /api/estimate/{job_id}?profile=standard`
+
+Mengambil estimasi output berdasarkan metadata original dan profile optimasi yang dipilih. Response berisi target resolusi, FPS, CRF, bitrate cap, audio setting, format output, dan ringkasan perubahan.
+
+Estimasi juga menampilkan perkiraan ukuran output kasar dan warning jika video panjang, file besar, 4K, atau bitrate sumber terlalu rendah untuk menjaga detail.
+
+### `POST /api/jobs/{job_id}/cancel`
+
+Meminta pembatalan job yang sedang berada di status `queued`, `encoding`, atau `finalizing`. Jika FFmpeg masih berjalan, proses akan dihentikan dan status job menjadi `canceled`.
+
+### `GET /api/health`
+
+Mengecek apakah FFmpeg dan FFprobe tersedia di server, serta menampilkan penggunaan storage lokal.
+
+### `GET /api/config`
+
+Menampilkan konfigurasi runtime aktif: batas upload, expiry job, jumlah proses FFmpeg bersamaan, path binary FFmpeg/FFprobe, dan ekstensi file yang didukung.
+
+### `POST /api/cleanup`
+
+Menghapus job yang sudah melewati `expires_at`, termasuk file original, output, thumbnail, log, dan JSON job.
+
 ### `POST /api/optimize`
 
 Memulai optimasi.
@@ -453,7 +481,7 @@ Response:
 {
   "success": true,
   "job_id": "job_abc123",
-  "status": "processing",
+  "status": "encoding",
   "progress": 42
 }
 ```
@@ -773,7 +801,9 @@ Format response error:
 - Beri expiry pada file.
 - Bersihkan file lama dengan scheduled cleanup.
 - Batasi jumlah job per IP jika dipublikasi.
-- Jangan expose full command dan path server ke frontend.
+- Jangan expose full command FFmpeg atau path file upload/output ke frontend.
+- Batasi jumlah job FFmpeg bersamaan agar server tidak overload.
+- Escape semua teks dinamis di frontend sebelum dimasukkan ke HTML.
 
 ## 19. Acceptance Criteria
 

@@ -1,9 +1,62 @@
 import subprocess
 import time
 from pathlib import Path
+from threading import Lock
 
 from backend import settings
-from backend.services import job_service, metadata_service, profile_service
+from backend.services import job_service, metadata_service, profile_service, storage_service
+
+ACTIVE_PROCESSES: dict[str, subprocess.Popen] = {}
+ACTIVE_LOCK = Lock()
+
+
+def tool_version(binary: str) -> dict:
+    try:
+        result = subprocess.run(
+            [binary, "-version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        return {"available": False, "version": None, "error": f"{binary} tidak ditemukan di PATH."}
+    except subprocess.TimeoutExpired:
+        return {"available": False, "version": None, "error": f"{binary} tidak merespons."}
+
+    first_line = result.stdout.splitlines()[0] if result.stdout else ""
+    return {
+        "available": result.returncode == 0,
+        "version": first_line,
+        "error": None if result.returncode == 0 else (result.stderr.strip() or f"{binary} gagal dijalankan."),
+    }
+
+
+def health_check() -> dict:
+    ffmpeg = tool_version(settings.FFMPEG_BIN)
+    ffprobe = tool_version(settings.FFPROBE_BIN)
+    return {
+        "ok": ffmpeg["available"] and ffprobe["available"],
+        "ffmpeg": ffmpeg,
+        "ffprobe": ffprobe,
+    }
+
+
+def cancel_job(job_id: str) -> dict:
+    job = job_service.get_job(job_id)
+    status = job.get("status")
+    if status not in {"queued", "encoding", "finalizing", "processing", "cancel_requested"}:
+        raise ValueError("Job tidak sedang diproses.")
+
+    job.update({"status": "cancel_requested", "error_message": None})
+    job_service.save_job(job)
+
+    with ACTIVE_LOCK:
+        process = ACTIVE_PROCESSES.get(job_id)
+    if process and process.poll() is None:
+        process.terminate()
+
+    return job
 
 
 def create_thumbnail(input_path: Path, output_path: Path) -> None:
@@ -91,10 +144,16 @@ def optimize_job(job_id: str, profile_name: str) -> None:
     started = time.monotonic()
 
     try:
+        latest = job_service.get_job(job_id)
+        if latest.get("status") == "cancel_requested":
+            latest.update({"status": "canceled", "progress": 0, "finished_at": job_service.now_iso()})
+            job_service.save_job(latest)
+            return
+
         args = build_ffmpeg_args(input_path, output_path, job["original"], profile_name)
         job.update(
             {
-                "status": "processing",
+                "status": "encoding",
                 "profile": profile_name,
                 "output_filename": output_filename,
                 "progress": 1,
@@ -115,22 +174,41 @@ def optimize_job(job_id: str, profile_name: str) -> None:
                 text=True,
                 bufsize=1,
             )
+            with ACTIVE_LOCK:
+                ACTIVE_PROCESSES[job_id] = process
 
             if process.stdout:
                 for line in process.stdout:
+                    latest = job_service.get_job(job_id)
+                    if latest.get("status") == "cancel_requested":
+                        process.terminate()
+                        break
                     key, _, value = line.strip().partition("=")
                     if key == "out_time_ms":
                         progress = min(int((int(value) / duration_ms) * 100), 99)
-                        job = job_service.get_job(job_id)
-                        job["progress"] = max(job.get("progress", 0), progress)
-                        job_service.save_job(job)
+                        latest["progress"] = max(latest.get("progress", 0), progress)
+                        job_service.save_job(latest)
 
             returncode = process.wait()
+            with ACTIVE_LOCK:
+                ACTIVE_PROCESSES.pop(job_id, None)
+
+        latest = job_service.get_job(job_id)
+        if latest.get("status") == "cancel_requested":
+            storage_service.remove_if_exists(output_path)
+            latest.update({"status": "canceled", "finished_at": job_service.now_iso()})
+            job_service.save_job(latest)
+            return
+
         if returncode != 0:
             message = log_path.read_text(encoding="utf-8").strip()
             raise RuntimeError(message or "FFmpeg gagal memproses video.")
         if not output_path.exists() or output_path.stat().st_size == 0:
             raise RuntimeError("Output video tidak terbentuk.")
+
+        job = job_service.get_job(job_id)
+        job.update({"status": "finalizing", "progress": 99})
+        job_service.save_job(job)
 
         optimized = metadata_service.read_metadata(output_path)
         original_size = int(job["original"].get("file_size") or 0)
@@ -140,6 +218,12 @@ def optimize_job(job_id: str, profile_name: str) -> None:
         processing_seconds = round(time.monotonic() - started, 3)
 
         job = job_service.get_job(job_id)
+        if job.get("status") == "cancel_requested":
+            storage_service.remove_if_exists(output_path)
+            job.update({"status": "canceled", "finished_at": job_service.now_iso()})
+            job_service.save_job(job)
+            return
+
         job.update(
             {
                 "status": "completed",
@@ -155,7 +239,18 @@ def optimize_job(job_id: str, profile_name: str) -> None:
         )
         job_service.save_job(job)
     except Exception as exc:
+        with ACTIVE_LOCK:
+            ACTIVE_PROCESSES.pop(job_id, None)
         job = job_service.get_job(job_id)
+        if job.get("status") == "cancel_requested":
+            job.update(
+                {
+                    "status": "canceled",
+                    "finished_at": job_service.now_iso(),
+                }
+            )
+            job_service.save_job(job)
+            return
         job.update(
             {
                 "status": "failed",
